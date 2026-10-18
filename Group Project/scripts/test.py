@@ -3,14 +3,15 @@ from pathlib import Path
 import pandas as pd
 
 
-DATA_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parent.parent   # Group Project/
+DATA_DIR = PROJECT_DIR / "data"
 
 
 def inspect_dataset(name: str) -> pd.DataFrame:
     path = DATA_DIR / name
     if not path.is_file():
         raise FileNotFoundError(
-            f"Could not find {path}. Put {name} in the same folder as this script."
+            f"Could not find {path}. Put {name} in the data folder."
         )
 
     data = pd.read_csv(path, header=None)

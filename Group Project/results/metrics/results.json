@@ -1,0 +1,55 @@
+[
+  {
+    "experiment": "baseline",
+    "hidden_layers": [
+      64,
+      32
+    ],
+    "optimizer": "Adam",
+    "learning_rate": 0.001,
+    "loss": "cross-entropy",
+    "accuracy": 0.9738,
+    "precision_weighted": 0.9738382324848258,
+    "recall_weighted": 0.9738,
+    "f1_weighted": 0.9738071140446486,
+    "precision_macro": 0.9734948664597972,
+    "recall_macro": 0.9736483061663469,
+    "f1_macro": 0.9735591937562214
+  },
+  {
+    "experiment": "deeper_adamw",
+    "hidden_layers": [
+      128,
+      64,
+      32
+    ],
+    "optimizer": "AdamW",
+    "learning_rate": 0.001,
+    "loss": "cross-entropy",
+    "accuracy": 0.977,
+    "precision_weighted": 0.9770294065479369,
+    "recall_weighted": 0.977,
+    "f1_weighted": 0.9769896770572106,
+    "precision_macro": 0.9768848128186933,
+    "recall_macro": 0.9767497079060753,
+    "f1_macro": 0.976791443171436
+  },
+  {
+    "experiment": "deeper_weighted",
+    "hidden_layers": [
+      128,
+      64,
+      32
+    ],
+    "optimizer": "AdamW",
+    "learning_rate": 0.0005,
+    "loss": "weighted cross-entropy",
+    "accuracy": 0.98,
+    "precision_weighted": 0.9800112266089965,
+    "recall_weighted": 0.98,
+    "f1_weighted": 0.97999794074294,
+    "precision_macro": 0.9799374429292694,
+    "recall_macro": 0.9798231462450129,
+    "f1_macro": 0.9798725991753899
+  }
+]

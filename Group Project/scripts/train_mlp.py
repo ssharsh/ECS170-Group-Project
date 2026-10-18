@@ -16,7 +16,8 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
 
-DATA_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parent.parent   # Group Project/
+DATA_DIR = PROJECT_DIR / "data"
 
 
 class MLP(nn.Module):
@@ -65,7 +66,9 @@ def load_data(target_column: int, header: str) -> tuple[np.ndarray, ...]:
 
     train_features = train.drop(columns=train.columns[target_column])
     test_features = test.drop(columns=test.columns[target_column])
-    test_features.columns = train_features.columns
+    feature_names = [f"feature_{i}" for i in range(train_features.shape[1])]
+    train_features.columns = feature_names
+    test_features.columns = feature_names
 
     numeric_columns = train_features.select_dtypes(include=np.number).columns.tolist()
     categorical_columns = [
@@ -200,7 +203,7 @@ def run_experiment(
     return metrics, epoch_losses
 
 
-def save_architecture_plot(input_size: int, num_classes: int) -> Path:
+def save_architecture_plot(input_size: int, num_classes: int, output_dir: Path) -> Path:
     models = {
         "Baseline": [input_size, 64, 32, num_classes],
         "Deeper": [input_size, 128, 64, 32, num_classes],
@@ -238,7 +241,7 @@ def save_architecture_plot(input_size: int, num_classes: int) -> Path:
                 )
     fig.suptitle("Fully connected MLP architectures")
     fig.tight_layout()
-    path = DATA_DIR / "model_architecture.png"
+    path = output_dir / "model_architecture.png"
     fig.savefig(path, dpi=150)
     plt.close(fig)
     return path
@@ -260,12 +263,19 @@ def main() -> None:
         default="absent",
         help="Whether the CSV files have a header row (default: absent).",
     )
+    parser.add_argument("--output-dir", type=Path, default=PROJECT_DIR / "results" )
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
     if args.epochs < 1 or args.batch_size < 1:
         parser.error("--epochs and --batch-size must be positive.")
+
+    output_dir = args.output_dir.resolve()
+    plots_dir = output_dir / "plots"
+    metrics_dir = output_dir / "metrics"
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    metrics_dir.mkdir(parents=True, exist_ok=True)
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -275,7 +285,7 @@ def main() -> None:
     x_train, y_train, x_test, y_test, classes = load_data(
         args.target_column, args.header
     )
-    architecture_path = save_architecture_plot(x_train.shape[1], len(classes))
+    architecture_path = save_architecture_plot(x_train.shape[1], len(classes), plots_dir)
 
     experiments = [
         ("baseline", (64, 32), "Adam", 1e-3, False),
@@ -303,10 +313,10 @@ def main() -> None:
         results.append(metrics)
         losses_by_experiment[name] = losses
 
-    results_path = DATA_DIR / "results.json"
+    results_path = metrics_dir / "results.json"
     results_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
     results_frame = pd.DataFrame(results).set_index("experiment")
-    results_frame.to_csv(DATA_DIR / "results.csv")
+    results_frame.to_csv(metrics_dir /"results.csv")
     print("\nTest-set performance:")
     print(results_frame.to_string(float_format=lambda value: f"{value:.4f}"))
 
@@ -318,7 +328,7 @@ def main() -> None:
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plot_path = DATA_DIR / "training_loss.png"
+    plot_path = plots_dir / "training_loss.png"
     plt.savefig(plot_path, dpi=150)
     plt.close()
     print(f"\nSaved metrics to {results_path} and results.csv")

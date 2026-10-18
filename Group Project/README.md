@@ -67,3 +67,6 @@ performance table, convergence discussion, and ablation-study comparison.
 
 The CSV files were not present in the project folder when this scaffold was
 prepared, so no dataset-specific results are included yet.
+
+## How to add data
+Put your data sets into data folder, then run train_mlp.py
