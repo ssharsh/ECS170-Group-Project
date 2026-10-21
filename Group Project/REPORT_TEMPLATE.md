@@ -77,8 +77,16 @@ or the temporary smoke-test output.
 
 ### 3.7 Ablation Studies
 
-Compare the baseline with `deeper_adamw` to discuss the effect of adding a
-hidden layer and changing Adam to AdamW. Compare `deeper_adamw` with
-`deeper_weighted` to discuss the effect of class-weighted loss and the
-learning-rate change. Report the observed metric differences and note that
-more than one setting changes in the latter comparison: [analysis].
+Going from the baseline to `deeper_adamw` raised accuracy from 97.38% to
+97.70% (+0.32 pp), and F1 went up by about the same amount. This step made the
+network bigger and switched from Adam to AdamW. We changed both at once, so we
+can't tell which one helped.
+
+Going from `deeper_adamw` to `deeper_weighted` raised accuracy to 98.00%
+(+0.30 pp). This step added class weights to the loss and halved the learning
+rate. Our classes are about balanced (weighted and macro scores are nearly the
+same), so the class weights probably made little difference. The lower learning
+rate is the more likely reason for the gain.
+
+All of these improvements are small and come from a single run, so they could
+partly be due to chance.
