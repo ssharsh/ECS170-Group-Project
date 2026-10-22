@@ -77,6 +77,12 @@ or the temporary smoke-test output.
 
 ### 3.7 Ablation Studies
 
+| Experiment | Hidden layers | Accuracy | Weighted F1 | Macro F1 | Accuracy change |
+|---|---|---:|---:|---:|---:|
+| baseline | 64, 32 | 97.38% | 97.38% | 97.36% | — |
+| deeper_adamw | 128, 64, 32 | 97.70% | 97.70% | 97.68% | +0.32 pp |
+| deeper_weighted | 128, 64, 32 | 98.00% | 98.00% | 97.99% | +0.30 pp |
+
 Going from the baseline to `deeper_adamw` raised accuracy from 97.38% to
 97.70% (+0.32 pp), and F1 went up by about the same amount. This step made the
 network bigger and switched from Adam to AdamW. We changed both at once, so we
