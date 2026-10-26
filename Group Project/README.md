@@ -1,4 +1,4 @@
-# ECS 170 MLP project
+# ECS 170 Classification Project
 
 ## Setup and run in VS Code
 
@@ -34,7 +34,7 @@ The program uses the instructor-provided train/test partition as-is. It fits
 missing-value handling, scaling, categorical encoding, and label encoding from
 the training data only. The test set is reserved for final evaluation.
 
-## Model and experiments
+## Stage 2: MLP model and experiments
 
 All models are fully connected multilayer perceptrons. Linear layers use
 PyTorch's default parameter initialization, ReLU is applied after each hidden
@@ -68,5 +68,44 @@ performance table, convergence discussion, and ablation-study comparison.
 The CSV files were not present in the project folder when this scaffold was
 prepared, so no dataset-specific results are included yet.
 
-## How to add data
-Put your data sets into data folder, then run train_mlp.py
+## Stage 3: CNN image classification
+
+Install dependencies with `python -m pip install -r requirements.txt`. The
+instructor-provided pickle files `MNIST`, `ORL`, and `CIFAR` can be used
+directly by placing them in one directory:
+
+```text
+stage_3_data/
+  MNIST
+  ORL
+  CIFAR
+```
+
+The loaders read the supplied train/test records and labels from those files.
+They also support MNIST IDX files and ORL/CIFAR image folders. For the folder
+format, use `mnist/` with the standard IDX files, `orl/train/<person>/` and
+`orl/test/<person>/`, and `cifar/train/<class>/` and `cifar/test/<class>/`.
+ORL also accepts unsplit subject folders and makes a deterministic 80/20 split.
+ORL and CIFAR image folders support PNG, JPEG, BMP, PGM, PPM, and TIFF files.
+
+Run all datasets or select one to iterate quickly:
+
+```bash
+python scripts/train_cnn.py --data-dir /path/to/stage_3_data
+python scripts/train_cnn.py --dataset mnist --data-dir /path/to/stage_3_data
+```
+
+The default run uses 10 epochs, batch size 64, a fixed seed, and CUDA when
+available. Three configurations compare a two-block 3x3 baseline, a deeper
+three-block model, and a two-block 5x5 model with weighted cross-entropy. Each
+dataset gets its own `results/cnn/<dataset>/metrics/results.csv` and
+`results.json`, plus a training-loss plot in `results/cnn/<dataset>/plots/`.
+Metrics are held-out test accuracy and weighted/macro Precision, Recall, and
+F1. The JSON also records the class names and split sizes. The weighted-loss
+experiment changes its optimizer, learning rate, kernel, and loss together, so
+it is a combined comparison rather than an isolated loss ablation.
+
+For the supplied files in this repository's sibling `project stage 3/`
+directory, pass that directory as `--data-dir`. Training outputs are generated
+under `results/cnn/`; use the metrics CSVs and loss plots to fill in
+`REPORT_TEMPLATE_CNN.md`.

@@ -1,0 +1,86 @@
+{
+  "dataset": "cifar",
+  "train_examples": 50000,
+  "test_examples": 10000,
+  "classes": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9"
+  ],
+  "results": [
+    {
+      "experiment": "baseline",
+      "convolution_channels": [
+        32,
+        64
+      ],
+      "kernel_size": 3,
+      "stride": 1,
+      "padding": 1,
+      "pooling": "2x2 max pooling after each convolution",
+      "hidden_size": 128,
+      "optimizer": "Adam",
+      "learning_rate": 0.001,
+      "loss": "cross-entropy",
+      "accuracy": 0.5461,
+      "precision_weighted": 0.5461060711811794,
+      "recall_weighted": 0.5461,
+      "f1_weighted": 0.5382823008322677,
+      "precision_macro": 0.5461060711811794,
+      "recall_macro": 0.5461,
+      "f1_macro": 0.5382823008322679
+    },
+    {
+      "experiment": "deeper_adamw",
+      "convolution_channels": [
+        32,
+        64,
+        128
+      ],
+      "kernel_size": 3,
+      "stride": 1,
+      "padding": 1,
+      "pooling": "2x2 max pooling after each convolution",
+      "hidden_size": 256,
+      "optimizer": "AdamW",
+      "learning_rate": 0.001,
+      "loss": "cross-entropy",
+      "accuracy": 0.6668,
+      "precision_weighted": 0.6988572952977112,
+      "recall_weighted": 0.6668,
+      "f1_weighted": 0.6587137473435195,
+      "precision_macro": 0.6988572952977111,
+      "recall_macro": 0.6668000000000001,
+      "f1_macro": 0.6587137473435195
+    },
+    {
+      "experiment": "wide_kernel_weighted",
+      "convolution_channels": [
+        32,
+        64
+      ],
+      "kernel_size": 5,
+      "stride": 1,
+      "padding": 2,
+      "pooling": "2x2 max pooling after each convolution",
+      "hidden_size": 128,
+      "optimizer": "AdamW",
+      "learning_rate": 0.0005,
+      "loss": "weighted cross-entropy",
+      "accuracy": 0.5223,
+      "precision_weighted": 0.5386813003683757,
+      "recall_weighted": 0.5223,
+      "f1_weighted": 0.516677646428104,
+      "precision_macro": 0.5386813003683757,
+      "recall_macro": 0.5223,
+      "f1_macro": 0.5166776464281038
+    }
+  ]
+}

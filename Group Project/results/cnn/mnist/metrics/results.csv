@@ -1,0 +1,4 @@
+experiment,convolution_channels,kernel_size,stride,padding,pooling,hidden_size,optimizer,learning_rate,loss,accuracy,precision_weighted,recall_weighted,f1_weighted,precision_macro,recall_macro,f1_macro
+baseline,"[32, 64]",3,1,1,2x2 max pooling after each convolution,128,Adam,0.001,cross-entropy,0.952,0.9528735829050913,0.952,0.9520053799406308,0.9518623151953776,0.9517266172650528,0.9513516085786357
+deeper_adamw,"[32, 64, 128]",3,1,1,2x2 max pooling after each convolution,256,AdamW,0.001,cross-entropy,0.9875,0.9876819109632241,0.9875,0.9875061039860977,0.9876090433470528,0.9874415191125397,0.9874392281977371
+wide_kernel_weighted,"[32, 64]",5,1,2,2x2 max pooling after each convolution,128,AdamW,0.0005,weighted cross-entropy,0.9661,0.9667588658833989,0.9661,0.9660640010896808,0.9657845393560406,0.966175571591495,0.965606050150515
