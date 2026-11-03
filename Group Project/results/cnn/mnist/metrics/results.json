@@ -16,28 +16,6 @@
   ],
   "results": [
     {
-      "experiment": "baseline",
-      "convolution_channels": [
-        32,
-        64
-      ],
-      "kernel_size": 3,
-      "stride": 1,
-      "padding": 1,
-      "pooling": "2x2 max pooling after each convolution",
-      "hidden_size": 128,
-      "optimizer": "Adam",
-      "learning_rate": 0.001,
-      "loss": "cross-entropy",
-      "accuracy": 0.952,
-      "precision_weighted": 0.9528735829050913,
-      "recall_weighted": 0.952,
-      "f1_weighted": 0.9520053799406308,
-      "precision_macro": 0.9518623151953776,
-      "recall_macro": 0.9517266172650528,
-      "f1_macro": 0.9513516085786357
-    },
-    {
       "experiment": "deeper_adamw",
       "convolution_channels": [
         32,
@@ -59,28 +37,6 @@
       "precision_macro": 0.9876090433470528,
       "recall_macro": 0.9874415191125397,
       "f1_macro": 0.9874392281977371
-    },
-    {
-      "experiment": "wide_kernel_weighted",
-      "convolution_channels": [
-        32,
-        64
-      ],
-      "kernel_size": 5,
-      "stride": 1,
-      "padding": 2,
-      "pooling": "2x2 max pooling after each convolution",
-      "hidden_size": 128,
-      "optimizer": "AdamW",
-      "learning_rate": 0.0005,
-      "loss": "weighted cross-entropy",
-      "accuracy": 0.9661,
-      "precision_weighted": 0.9667588658833989,
-      "recall_weighted": 0.9661,
-      "f1_weighted": 0.9660640010896808,
-      "precision_macro": 0.9657845393560406,
-      "recall_macro": 0.966175571591495,
-      "f1_macro": 0.965606050150515
     }
   ]
 }

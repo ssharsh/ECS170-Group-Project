@@ -46,71 +46,17 @@
   ],
   "results": [
     {
-      "experiment": "baseline",
-      "convolution_channels": [
-        32,
-        64
-      ],
-      "kernel_size": 3,
-      "stride": 1,
-      "padding": 1,
-      "pooling": "2x2 max pooling after each convolution",
-      "hidden_size": 128,
-      "optimizer": "Adam",
-      "learning_rate": 0.001,
-      "loss": "cross-entropy",
-      "accuracy": 0.025,
-      "precision_weighted": 0.0008064516129032258,
-      "recall_weighted": 0.025,
-      "f1_weighted": 0.0015625,
-      "precision_macro": 0.0008064516129032258,
-      "recall_macro": 0.025,
-      "f1_macro": 0.0015625
-    },
-    {
-      "experiment": "deeper_adamw",
-      "convolution_channels": [
-        32,
-        64,
-        128
-      ],
-      "kernel_size": 3,
-      "stride": 1,
-      "padding": 1,
-      "pooling": "2x2 max pooling after each convolution",
-      "hidden_size": 256,
-      "optimizer": "AdamW",
-      "learning_rate": 0.001,
-      "loss": "cross-entropy",
-      "accuracy": 0.05,
-      "precision_weighted": 0.005277777777777778,
-      "recall_weighted": 0.05,
-      "f1_weighted": 0.009545454545454546,
-      "precision_macro": 0.005277777777777778,
-      "recall_macro": 0.05,
-      "f1_macro": 0.009545454545454546
-    },
-    {
-      "experiment": "wide_kernel_weighted",
-      "convolution_channels": [
-        32,
-        64
-      ],
-      "kernel_size": 5,
-      "stride": 1,
-      "padding": 2,
-      "pooling": "2x2 max pooling after each convolution",
-      "hidden_size": 128,
-      "optimizer": "AdamW",
-      "learning_rate": 0.0005,
-      "loss": "weighted cross-entropy",
-      "accuracy": 0.025,
-      "precision_weighted": 0.0006578947368421052,
-      "recall_weighted": 0.025,
-      "f1_weighted": 0.001282051282051282,
-      "precision_macro": 0.0006578947368421052,
-      "recall_macro": 0.025,
-      "f1_macro": 0.001282051282051282
+      "experiment": "pca_svm",
+      "model": "40-component PCA + RBF SVM",
+      "optimizer": "SVC",
+      "loss": null,
+      "accuracy": 0.975,
+      "precision_weighted": 0.9625000000000001,
+      "recall_weighted": 0.9750000000000002,
+      "f1_weighted": 0.9666666666666669,
+      "precision_macro": 0.9625,
+      "recall_macro": 0.975,
+      "f1_macro": 0.9666666666666668
     }
   ]
 }

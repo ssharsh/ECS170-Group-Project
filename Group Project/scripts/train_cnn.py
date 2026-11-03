@@ -12,7 +12,9 @@ import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
+from sklearn.decomposition import PCA
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from sklearn.svm import SVC
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
@@ -340,7 +342,11 @@ EXPERIMENTS = (
 
 
 def _evaluate(
-    model: CNN, loader: DataLoader, device: torch.device
+    model: CNN,
+    loader: DataLoader,
+    device: torch.device,
+    channel_mean: torch.Tensor | None,
+    channel_std: torch.Tensor | None,
 ) -> tuple[np.ndarray, np.ndarray]:
     model.eval()
     targets: list[np.ndarray] = []
@@ -348,6 +354,8 @@ def _evaluate(
     with torch.no_grad():
         for images, labels in loader:
             images = images.to(device=device, dtype=torch.float32).div_(255)
+            if channel_mean is not None and channel_std is not None:
+                images = (images - channel_mean) / channel_std
             outputs = model(images)
             predictions.append(outputs.argmax(dim=1).cpu().numpy())
             targets.append(labels.numpy())
@@ -363,6 +371,8 @@ def _train_experiment(
     batch_size: int,
     seed: int,
     device: torch.device,
+    *,
+    augment_cifar: bool = False,
 ) -> tuple[dict, list[float]]:
     torch.manual_seed(seed)
     model = CNN(
@@ -381,6 +391,18 @@ def _train_experiment(
         num_workers=0,
     )
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
+    channel_mean = None
+    channel_std = None
+    if augment_cifar:
+        channel_mean = (
+            train_data.images.float().mean(dim=(0, 2, 3)).div(255).to(device)
+        )[None, :, None, None]
+        channel_std = (
+            train_data.images.float().std(dim=(0, 2, 3), unbiased=False)
+            .div(255)
+            .clamp_min(1e-6)
+            .to(device)
+        )[None, :, None, None]
     if config["weighted_loss"]:
         labels = train_data.labels.numpy()
         counts = np.bincount(labels, minlength=num_classes)
@@ -406,6 +428,11 @@ def _train_experiment(
         samples_seen = 0
         for images, labels in train_loader:
             images = images.to(device=device, dtype=torch.float32).div_(255)
+            if channel_mean is not None and channel_std is not None:
+                images = (images - channel_mean) / channel_std
+            if augment_cifar:
+                flip_mask = torch.rand(len(images), device=device) < 0.5
+                images[flip_mask] = images[flip_mask].flip(-1)
             labels = labels.to(device)
             optimizer.zero_grad(set_to_none=True)
             loss = criterion(model(images), labels)
@@ -420,7 +447,9 @@ def _train_experiment(
                 f"loss={losses[-1]:.4f}"
             )
 
-    targets, predictions = _evaluate(model, test_loader, device)
+    targets, predictions = _evaluate(
+        model, test_loader, device, channel_mean, channel_std
+    )
     weighted = precision_recall_fscore_support(
         targets, predictions, average="weighted", zero_division=0
     )
@@ -449,6 +478,72 @@ def _train_experiment(
     return metrics, losses
 
 
+def _train_orl_pca_svm(
+    train_data: ImageFolderDataset,
+    test_data: ImageFolderDataset,
+) -> dict:
+    train_images = (
+        train_data.images.numpy()
+        .astype(np.float32)
+        .mean(axis=1)
+        .reshape(len(train_data), -1)
+        / 255
+    )
+    test_images = (
+        test_data.images.numpy()
+        .astype(np.float32)
+        .mean(axis=1)
+        .reshape(len(test_data), -1)
+        / 255
+    )
+    pca = PCA(n_components=40, svd_solver="randomized", random_state=0)
+    train_features = pca.fit_transform(train_images)
+    test_features = pca.transform(test_images)
+    model = SVC(C=10, gamma=0.01, kernel="rbf")
+    model.fit(train_features, train_data.labels.numpy())
+    targets = test_data.labels.numpy()
+    predictions = model.predict(test_features)
+    matrix = np.zeros(
+        (len(train_data.classes), len(train_data.classes)), dtype=np.int64
+    )
+    np.add.at(matrix, (targets, predictions), 1)
+    true_positive = np.diag(matrix)
+    class_support = matrix.sum(axis=1)
+    predicted_support = matrix.sum(axis=0)
+    precision = np.divide(
+        true_positive,
+        predicted_support,
+        out=np.zeros_like(true_positive, dtype=float),
+        where=predicted_support != 0,
+    )
+    recall = np.divide(
+        true_positive,
+        class_support,
+        out=np.zeros_like(true_positive, dtype=float),
+        where=class_support != 0,
+    )
+    f1 = np.divide(
+        2 * precision * recall,
+        precision + recall,
+        out=np.zeros_like(precision),
+        where=(precision + recall) != 0,
+    )
+    class_weights = class_support / class_support.sum()
+    return {
+        "experiment": "pca_svm",
+        "model": "40-component PCA + RBF SVM",
+        "optimizer": "SVC",
+        "loss": None,
+        "accuracy": float(np.mean(targets == predictions)),
+        "precision_weighted": np.dot(precision, class_weights),
+        "recall_weighted": np.dot(recall, class_weights),
+        "f1_weighted": np.dot(f1, class_weights),
+        "precision_macro": precision.mean(),
+        "recall_macro": recall.mean(),
+        "f1_macro": f1.mean(),
+    }
+
+
 def _dataset_loaders(dataset_name: str, root: Path):
     loaders = {
         "mnist": MNISTDataset,
@@ -468,6 +563,7 @@ def run_dataset(
     batch_size: int,
     seed: int,
     device: torch.device,
+    experiment_name: str,
 ) -> None:
     train_data, test_data = _dataset_loaders(dataset_name, root)
     if train_data.classes != test_data.classes:
@@ -487,7 +583,12 @@ def run_dataset(
 
     results = []
     losses_by_experiment = {}
-    for config in EXPERIMENTS:
+    if experiment_name == "pca_svm" and dataset_name != "orl":
+        raise ValueError("The pca_svm experiment is only available for ORL.")
+    experiment_configs = EXPERIMENTS if experiment_name == "all" else tuple(
+        config for config in EXPERIMENTS if config["name"] == experiment_name
+    )
+    for config in experiment_configs:
         metrics, losses = _train_experiment(
             config,
             train_data,
@@ -497,9 +598,13 @@ def run_dataset(
             batch_size,
             seed,
             device,
+            augment_cifar=dataset_name == "cifar",
         )
         results.append(metrics)
         losses_by_experiment[config["name"]] = losses
+
+    if dataset_name == "orl" and experiment_name in ("all", "pca_svm"):
+        results.append(_train_orl_pca_svm(train_data, test_data))
 
     results_frame = pd.DataFrame(results)
     (metrics_dir / "results.json").write_text(
@@ -517,16 +622,17 @@ def run_dataset(
     )
     results_frame.to_csv(metrics_dir / "results.csv", index=False)
 
-    for name, losses in losses_by_experiment.items():
-        plt.plot(range(1, len(losses) + 1), losses, label=name)
-    plt.xlabel("Training epoch")
-    plt.ylabel("Mean training cross-entropy")
-    plt.title(f"{dataset_name.upper()} CNN training loss")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(plots_dir / "training_loss.png", dpi=150)
-    plt.close()
+    if losses_by_experiment:
+        for name, losses in losses_by_experiment.items():
+            plt.plot(range(1, len(losses) + 1), losses, label=name)
+        plt.xlabel("Training epoch")
+        plt.ylabel("Mean training cross-entropy")
+        plt.title(f"{dataset_name.upper()} CNN training loss")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(plots_dir / "training_loss.png", dpi=150)
+        plt.close()
     print(results_frame.to_string(index=False, float_format=lambda value: f"{value:.4f}"))
     print(f"Saved outputs under {dataset_dir}")
 
@@ -543,9 +649,19 @@ def main() -> None:
     )
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     parser.add_argument("--output-dir", type=Path, default=PROJECT_DIR / "results" / "cnn")
-    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--experiment",
+        choices=(
+            "all",
+            "pca_svm",
+            *(config["name"] for config in EXPERIMENTS),
+        ),
+        default="all",
+        help="Train every configuration or one CNN/ORL PCA-SVM experiment.",
+    )
     args = parser.parse_args()
     if args.epochs < 1 or args.batch_size < 1:
         parser.error("--epochs and --batch-size must be positive.")
@@ -567,6 +683,7 @@ def main() -> None:
             args.batch_size,
             args.seed,
             device,
+            args.experiment,
         )
 
 

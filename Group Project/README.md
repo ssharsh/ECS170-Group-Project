@@ -93,17 +93,36 @@ Run all datasets or select one to iterate quickly:
 ```bash
 python scripts/train_cnn.py --data-dir /path/to/stage_3_data
 python scripts/train_cnn.py --dataset mnist --data-dir /path/to/stage_3_data
+python scripts/train_cnn.py --dataset cifar --experiment deeper_adamw --data-dir /path/to/stage_3_data
+python scripts/train_cnn.py --dataset orl --experiment pca_svm --data-dir /path/to/stage_3_data
 ```
 
-The default run uses 10 epochs, batch size 64, a fixed seed, and CUDA when
-available. Three configurations compare a two-block 3x3 baseline, a deeper
-three-block model, and a two-block 5x5 model with weighted cross-entropy. Each
-dataset gets its own `results/cnn/<dataset>/metrics/results.csv` and
-`results.json`, plus a training-loss plot in `results/cnn/<dataset>/plots/`.
+The default run uses 30 epochs, batch size 64, a fixed seed, and CUDA when
+available. CIFAR-10 training normalizes each channel using training-set
+statistics and applies random horizontal flips. Three configurations compare
+a two-block 3x3 baseline, a deeper three-block model, and a two-block 5x5
+model with weighted cross-entropy. Each dataset gets its own
+`results/cnn/<dataset>/metrics/results.csv` and
+`results.json`. CNN runs also generate a training-loss plot in
+`results/cnn/<dataset>/plots/`; the ORL PCA-SVM run has no loss curve. Use
+`--experiment` to select one CNN configuration or the ORL PCA-SVM model.
 Metrics are held-out test accuracy and weighted/macro Precision, Recall, and
 F1. The JSON also records the class names and split sizes. The weighted-loss
 experiment changes its optimizer, learning rate, kernel, and loss together, so
 it is a combined comparison rather than an isolated loss ablation.
+ORL also reports a PCA + RBF-SVM baseline. Its 40-component PCA and SVM
+settings were selected with cross-validation on the training split, then
+evaluated on the supplied test split.
+
+Generate the report-ready architecture diagram for the best-performing CNN
+configuration with:
+
+```bash
+python scripts/plot_cnn_architecture.py
+```
+
+This saves `model_architecture.png` and an editable vector `model_architecture.svg`
+under `results/cnn/plots/`.
 
 For the supplied files in this repository's sibling `project stage 3/`
 directory, pass that directory as `--data-dir`. Training outputs are generated
