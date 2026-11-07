@@ -46,17 +46,102 @@
   ],
   "results": [
     {
-      "experiment": "pca_svm",
-      "model": "40-component PCA + RBF SVM",
-      "optimizer": "SVC",
-      "loss": null,
-      "accuracy": 0.975,
-      "precision_weighted": 0.9625000000000001,
-      "recall_weighted": 0.9750000000000002,
-      "f1_weighted": 0.9666666666666669,
-      "precision_macro": 0.9625,
-      "recall_macro": 0.975,
-      "f1_macro": 0.9666666666666668
+      "experiment": "baseline",
+      "convolution_channels": [
+        32,
+        64
+      ],
+      "kernel_size": 3,
+      "stride": 1,
+      "padding": 1,
+      "pooling": "2x2 max pooling after each convolution; adaptive average pooling to 1x1",
+      "hidden_size": 128,
+      "optimizer": "Adam",
+      "learning_rate": 0.001,
+      "loss": "cross-entropy",
+      "epochs": 30,
+      "augmentation": "none",
+      "accuracy": 0.125,
+      "precision_weighted": 0.05227272727272727,
+      "recall_weighted": 0.125,
+      "f1_weighted": 0.06583333333333333,
+      "precision_macro": 0.05227272727272727,
+      "recall_macro": 0.125,
+      "f1_macro": 0.06583333333333333
+    },
+    {
+      "experiment": "deeper_adamw",
+      "convolution_channels": [
+        32,
+        64,
+        128
+      ],
+      "kernel_size": 3,
+      "stride": 1,
+      "padding": 1,
+      "pooling": "2x2 max pooling after each convolution; adaptive average pooling to 1x1",
+      "hidden_size": 256,
+      "optimizer": "AdamW",
+      "learning_rate": 0.001,
+      "loss": "cross-entropy",
+      "epochs": 30,
+      "augmentation": "none",
+      "accuracy": 0.325,
+      "precision_weighted": 0.21666666666666665,
+      "recall_weighted": 0.325,
+      "f1_weighted": 0.24345238095238092,
+      "precision_macro": 0.21666666666666665,
+      "recall_macro": 0.325,
+      "f1_macro": 0.24345238095238092
+    },
+    {
+      "experiment": "wide_kernel_weighted",
+      "convolution_channels": [
+        32,
+        64
+      ],
+      "kernel_size": 5,
+      "stride": 1,
+      "padding": 2,
+      "pooling": "2x2 max pooling after each convolution; adaptive average pooling to 1x1",
+      "hidden_size": 128,
+      "optimizer": "AdamW",
+      "learning_rate": 0.0005,
+      "loss": "weighted cross-entropy",
+      "epochs": 30,
+      "augmentation": "none",
+      "accuracy": 0.075,
+      "precision_weighted": 0.013541666666666665,
+      "recall_weighted": 0.075,
+      "f1_weighted": 0.022698412698412697,
+      "precision_macro": 0.013541666666666665,
+      "recall_macro": 0.075,
+      "f1_macro": 0.022698412698412697
+    },
+    {
+      "experiment": "orl_spatial_augmented",
+      "convolution_channels": [
+        32,
+        64,
+        128
+      ],
+      "kernel_size": 3,
+      "stride": 1,
+      "padding": 1,
+      "pooling": "2x2 max pooling after each convolution; adaptive average pooling to 4x4",
+      "hidden_size": 256,
+      "optimizer": "AdamW",
+      "learning_rate": 0.001,
+      "loss": "cross-entropy",
+      "epochs": 60,
+      "augmentation": "small affine and brightness/contrast jitter",
+      "accuracy": 1.0,
+      "precision_weighted": 1.0,
+      "recall_weighted": 1.0,
+      "f1_weighted": 1.0,
+      "precision_macro": 1.0,
+      "recall_macro": 1.0,
+      "f1_macro": 1.0
     }
   ]
 }

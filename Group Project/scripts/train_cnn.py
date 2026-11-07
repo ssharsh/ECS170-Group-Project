@@ -12,10 +12,10 @@ import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
-from sklearn.decomposition import PCA
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
 from torch import nn
+from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
 
 
@@ -259,8 +259,17 @@ class ORLDataset:
     @staticmethod
     def load(root: Path) -> tuple[ImageFolderDataset, ImageFolderDataset]:
         if root.is_file():
-            return _pickle_splits(root)
-        return _folder_splits(root, allow_unsplit=True)
+            train_data, test_data = _pickle_splits(root)
+        else:
+            train_data, test_data = _folder_splits(root, allow_unsplit=True)
+        for dataset in (train_data, test_data):
+            dataset.images = (
+                dataset.images.float()
+                .mean(dim=1, keepdim=True)
+                .round()
+                .to(dtype=dataset.images.dtype)
+            )
+        return train_data, test_data
 
 
 class CIFARDataset:
@@ -279,30 +288,44 @@ class CNN(nn.Module):
         channels: tuple[int, ...],
         kernel_size: int,
         hidden_size: int,
+        pool_size: int = 1,
+        batch_norm: bool = False,
+        dropout: float = 0.0,
+        stride: int = 1,
+        padding: int | None = None,
+        pooling: str = "max",
     ) -> None:
         super().__init__()
         layers: list[nn.Module] = []
         previous_channels = input_channels
         for channel_count in channels:
-            layers.extend(
-                (
-                    nn.Conv2d(
-                        previous_channels,
-                        channel_count,
-                        kernel_size=kernel_size,
-                        stride=1,
-                        padding=kernel_size // 2,
-                    ),
-                    nn.ReLU(),
-                    nn.MaxPool2d(kernel_size=2),
+            layers.append(
+                nn.Conv2d(
+                    previous_channels,
+                    channel_count,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    padding=kernel_size // 2 if padding is None else padding,
+                    bias=not batch_norm,
                 )
             )
+            if batch_norm:
+                layers.append(nn.BatchNorm2d(channel_count))
+            pool_layer = (
+                nn.MaxPool2d(kernel_size=2)
+                if pooling == "max"
+                else nn.AvgPool2d(kernel_size=2)
+            )
+            layers.extend((nn.ReLU(), pool_layer))
             previous_channels = channel_count
-        self.features = nn.Sequential(*layers, nn.AdaptiveAvgPool2d(1))
+        self.features = nn.Sequential(
+            *layers, nn.AdaptiveAvgPool2d((pool_size, pool_size))
+        )
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(previous_channels, hidden_size),
+            nn.Linear(previous_channels * pool_size * pool_size, hidden_size),
             nn.ReLU(),
+            nn.Dropout(dropout),
             nn.Linear(hidden_size, num_classes),
         )
 
@@ -338,7 +361,89 @@ EXPERIMENTS = (
         "learning_rate": 0.0005,
         "weighted_loss": True,
     },
+    {
+        "name": "orl_spatial_augmented",
+        "channels": (32, 64, 128),
+        "kernel_size": 3,
+        "hidden_size": 256,
+        "optimizer": "AdamW",
+        "learning_rate": 0.001,
+        "weight_decay": 0.001,
+        "weighted_loss": False,
+        "pool_size": 4,
+        "batch_norm": True,
+        "dropout": 0.4,
+        "epochs": 60,
+        "orl_augmentation": True,
+        "orl_only": True,
+    },
 )
+
+ABLATION_EXPERIMENTS = (
+    EXPERIMENTS[0],
+    {
+        **EXPERIMENTS[0],
+        "name": "ablation_deeper",
+        "channels": (32, 64, 128),
+    },
+    {
+        **EXPERIMENTS[0],
+        "name": "ablation_kernel5",
+        "kernel_size": 5,
+    },
+    {
+        **EXPERIMENTS[0],
+        "name": "ablation_stride2",
+        "stride": 2,
+    },
+    {
+        **EXPERIMENTS[0],
+        "name": "ablation_no_padding",
+        "padding": 0,
+    },
+    {
+        **EXPERIMENTS[0],
+        "name": "ablation_average_pool",
+        "pooling": "average",
+    },
+    {
+        **EXPERIMENTS[0],
+        "name": "ablation_hidden256",
+        "hidden_size": 256,
+    },
+    {
+        **EXPERIMENTS[0],
+        "name": "ablation_label_smoothing",
+        "label_smoothing": 0.1,
+    },
+)
+
+
+def _normalize_orl(images: torch.Tensor) -> torch.Tensor:
+    mean = images.mean(dim=(2, 3), keepdim=True)
+    std = images.std(dim=(2, 3), keepdim=True).clamp_min(0.08)
+    return ((images - mean) / std).clamp(-3, 3)
+
+
+def _augment_orl(images: torch.Tensor) -> torch.Tensor:
+    batch_size = len(images)
+    angles = (torch.rand(batch_size, device=images.device) - 0.5) * 0.20
+    translate_x = (torch.rand(batch_size, device=images.device) - 0.5) * 0.10
+    translate_y = (torch.rand(batch_size, device=images.device) - 0.5) * 0.10
+    theta = torch.zeros(batch_size, 2, 3, device=images.device)
+    theta[:, 0, 0] = angles.cos()
+    theta[:, 0, 1] = -angles.sin()
+    theta[:, 1, 0] = angles.sin()
+    theta[:, 1, 1] = angles.cos()
+    theta[:, 0, 2] = translate_x
+    theta[:, 1, 2] = translate_y
+    grid = F.affine_grid(theta, images.size(), align_corners=False)
+    images = F.grid_sample(
+        images, grid, padding_mode="border", align_corners=False
+    )
+    contrast = 0.8 + torch.rand(batch_size, 1, 1, 1, device=images.device) * 0.4
+    brightness = (torch.rand(batch_size, 1, 1, 1, device=images.device) - 0.5) * 0.12
+    return (images * contrast + brightness).clamp(0, 1)
 
 
 def _evaluate(
@@ -347,6 +452,7 @@ def _evaluate(
     device: torch.device,
     channel_mean: torch.Tensor | None,
     channel_std: torch.Tensor | None,
+    normalize_orl: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     model.eval()
     targets: list[np.ndarray] = []
@@ -356,6 +462,8 @@ def _evaluate(
             images = images.to(device=device, dtype=torch.float32).div_(255)
             if channel_mean is not None and channel_std is not None:
                 images = (images - channel_mean) / channel_std
+            if normalize_orl:
+                images = _normalize_orl(images)
             outputs = model(images)
             predictions.append(outputs.argmax(dim=1).cpu().numpy())
             targets.append(labels.numpy())
@@ -373,6 +481,7 @@ def _train_experiment(
     device: torch.device,
     *,
     augment_cifar: bool = False,
+    augment_orl: bool = False,
 ) -> tuple[dict, list[float]]:
     torch.manual_seed(seed)
     model = CNN(
@@ -381,6 +490,12 @@ def _train_experiment(
         channels=config["channels"],
         kernel_size=config["kernel_size"],
         hidden_size=config["hidden_size"],
+        pool_size=config.get("pool_size", 1),
+        batch_norm=config.get("batch_norm", False),
+        dropout=config.get("dropout", 0.0),
+        stride=config.get("stride", 1),
+        padding=config.get("padding"),
+        pooling=config.get("pooling", "max"),
     ).to(device)
     generator = torch.Generator().manual_seed(seed)
     train_loader = DataLoader(
@@ -413,16 +528,26 @@ def _train_experiment(
             weight=torch.tensor(weights, dtype=torch.float32, device=device)
         )
         loss_name = "weighted cross-entropy"
+    elif config.get("label_smoothing"):
+        criterion = nn.CrossEntropyLoss(
+            label_smoothing=config["label_smoothing"]
+        )
+        loss_name = f"label-smoothed cross-entropy ({config['label_smoothing']})"
     else:
         criterion = nn.CrossEntropyLoss()
         loss_name = "cross-entropy"
     optimizer_type: Type[torch.optim.Optimizer] = (
         torch.optim.Adam if config["optimizer"] == "Adam" else torch.optim.AdamW
     )
-    optimizer = optimizer_type(model.parameters(), lr=config["learning_rate"])
+    optimizer = optimizer_type(
+        model.parameters(),
+        lr=config["learning_rate"],
+        weight_decay=config.get("weight_decay", 0),
+    )
 
     losses: list[float] = []
-    for epoch in range(epochs):
+    experiment_epochs = config.get("epochs", epochs)
+    for epoch in range(experiment_epochs):
         model.train()
         total_loss = 0.0
         samples_seen = 0
@@ -430,6 +555,9 @@ def _train_experiment(
             images = images.to(device=device, dtype=torch.float32).div_(255)
             if channel_mean is not None and channel_std is not None:
                 images = (images - channel_mean) / channel_std
+            if augment_orl:
+                images = _augment_orl(images)
+                images = _normalize_orl(images)
             if augment_cifar:
                 flip_mask = torch.rand(len(images), device=device) < 0.5
                 images[flip_mask] = images[flip_mask].flip(-1)
@@ -441,14 +569,23 @@ def _train_experiment(
             total_loss += loss.item() * len(labels)
             samples_seen += len(labels)
         losses.append(total_loss / samples_seen)
-        if epoch == 0 or (epoch + 1) % 5 == 0 or epoch + 1 == epochs:
+        if (
+            epoch == 0
+            or (epoch + 1) % 5 == 0
+            or epoch + 1 == experiment_epochs
+        ):
             print(
-                f"{config['name']}: epoch {epoch + 1}/{epochs}, "
+                f"{config['name']}: epoch {epoch + 1}/{experiment_epochs}, "
                 f"loss={losses[-1]:.4f}"
             )
 
     targets, predictions = _evaluate(
-        model, test_loader, device, channel_mean, channel_std
+        model,
+        test_loader,
+        device,
+        channel_mean,
+        channel_std,
+        normalize_orl=augment_orl,
     )
     weighted = precision_recall_fscore_support(
         targets, predictions, average="weighted", zero_division=0
@@ -460,13 +597,27 @@ def _train_experiment(
         "experiment": config["name"],
         "convolution_channels": list(config["channels"]),
         "kernel_size": config["kernel_size"],
-        "stride": 1,
-        "padding": config["kernel_size"] // 2,
-        "pooling": "2x2 max pooling after each convolution",
+        "stride": config.get("stride", 1),
+        "padding": (
+            config["kernel_size"] // 2
+            if config.get("padding") is None
+            else config["padding"]
+        ),
+        "pooling": (
+            f"2x2 {config.get('pooling', 'max')} pooling after each convolution; "
+            f"adaptive average pooling to {config.get('pool_size', 1)}x"
+            f"{config.get('pool_size', 1)}"
+        ),
         "hidden_size": config["hidden_size"],
         "optimizer": config["optimizer"],
         "learning_rate": config["learning_rate"],
         "loss": loss_name,
+        "epochs": experiment_epochs,
+        "augmentation": (
+            "small affine and brightness/contrast jitter"
+            if augment_orl
+            else "random horizontal flip" if augment_cifar else "none"
+        ),
         "accuracy": accuracy_score(targets, predictions),
         "precision_weighted": weighted[0],
         "recall_weighted": weighted[1],
@@ -476,72 +627,6 @@ def _train_experiment(
         "f1_macro": macro[2],
     }
     return metrics, losses
-
-
-def _train_orl_pca_svm(
-    train_data: ImageFolderDataset,
-    test_data: ImageFolderDataset,
-) -> dict:
-    train_images = (
-        train_data.images.numpy()
-        .astype(np.float32)
-        .mean(axis=1)
-        .reshape(len(train_data), -1)
-        / 255
-    )
-    test_images = (
-        test_data.images.numpy()
-        .astype(np.float32)
-        .mean(axis=1)
-        .reshape(len(test_data), -1)
-        / 255
-    )
-    pca = PCA(n_components=40, svd_solver="randomized", random_state=0)
-    train_features = pca.fit_transform(train_images)
-    test_features = pca.transform(test_images)
-    model = SVC(C=10, gamma=0.01, kernel="rbf")
-    model.fit(train_features, train_data.labels.numpy())
-    targets = test_data.labels.numpy()
-    predictions = model.predict(test_features)
-    matrix = np.zeros(
-        (len(train_data.classes), len(train_data.classes)), dtype=np.int64
-    )
-    np.add.at(matrix, (targets, predictions), 1)
-    true_positive = np.diag(matrix)
-    class_support = matrix.sum(axis=1)
-    predicted_support = matrix.sum(axis=0)
-    precision = np.divide(
-        true_positive,
-        predicted_support,
-        out=np.zeros_like(true_positive, dtype=float),
-        where=predicted_support != 0,
-    )
-    recall = np.divide(
-        true_positive,
-        class_support,
-        out=np.zeros_like(true_positive, dtype=float),
-        where=class_support != 0,
-    )
-    f1 = np.divide(
-        2 * precision * recall,
-        precision + recall,
-        out=np.zeros_like(precision),
-        where=(precision + recall) != 0,
-    )
-    class_weights = class_support / class_support.sum()
-    return {
-        "experiment": "pca_svm",
-        "model": "40-component PCA + RBF SVM",
-        "optimizer": "SVC",
-        "loss": None,
-        "accuracy": float(np.mean(targets == predictions)),
-        "precision_weighted": np.dot(precision, class_weights),
-        "recall_weighted": np.dot(recall, class_weights),
-        "f1_weighted": np.dot(f1, class_weights),
-        "precision_macro": precision.mean(),
-        "recall_macro": recall.mean(),
-        "f1_macro": f1.mean(),
-    }
 
 
 def _dataset_loaders(dataset_name: str, root: Path):
@@ -564,8 +649,22 @@ def run_dataset(
     seed: int,
     device: torch.device,
     experiment_name: str,
+    max_train_examples: int | None,
 ) -> None:
     train_data, test_data = _dataset_loaders(dataset_name, root)
+    source_train_examples = len(train_data)
+    if max_train_examples is not None and max_train_examples < len(train_data):
+        indices, _ = train_test_split(
+            np.arange(len(train_data)),
+            train_size=max_train_examples,
+            random_state=seed,
+            stratify=train_data.labels.numpy(),
+        )
+        train_data = ImageFolderDataset(
+            train_data.images[indices].numpy(),
+            train_data.labels[indices].numpy(),
+            train_data.classes,
+        )
     if train_data.classes != test_data.classes:
         raise ValueError(f"{dataset_name}: training and testing classes differ.")
     if len(train_data) == 0 or len(test_data) == 0:
@@ -583,11 +682,21 @@ def run_dataset(
 
     results = []
     losses_by_experiment = {}
-    if experiment_name == "pca_svm" and dataset_name != "orl":
-        raise ValueError("The pca_svm experiment is only available for ORL.")
-    experiment_configs = EXPERIMENTS if experiment_name == "all" else tuple(
-        config for config in EXPERIMENTS if config["name"] == experiment_name
+    available_configs = ABLATION_EXPERIMENTS if experiment_name == "ablations" else EXPERIMENTS
+    experiment_configs = tuple(
+        config
+        for config in available_configs
+        if (
+            experiment_name in ("all", "shared", "ablations")
+            or config["name"] == experiment_name
+        )
+        and (experiment_name not in ("shared", "ablations") or not config.get("orl_only"))
+        and (not config.get("orl_only") or dataset_name == "orl")
     )
+    if not experiment_configs:
+        raise ValueError(
+            f"Experiment {experiment_name!r} is not available for {dataset_name}."
+        )
     for config in experiment_configs:
         metrics, losses = _train_experiment(
             config,
@@ -599,12 +708,10 @@ def run_dataset(
             seed,
             device,
             augment_cifar=dataset_name == "cifar",
+            augment_orl=config.get("orl_augmentation", False),
         )
         results.append(metrics)
         losses_by_experiment[config["name"]] = losses
-
-    if dataset_name == "orl" and experiment_name in ("all", "pca_svm"):
-        results.append(_train_orl_pca_svm(train_data, test_data))
 
     results_frame = pd.DataFrame(results)
     (metrics_dir / "results.json").write_text(
@@ -612,6 +719,7 @@ def run_dataset(
             {
                 "dataset": dataset_name,
                 "train_examples": len(train_data),
+                "source_train_examples": source_train_examples,
                 "test_examples": len(test_data),
                 "classes": train_data.classes,
                 "results": results,
@@ -651,20 +759,33 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=PROJECT_DIR / "results" / "cnn")
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument(
+        "--max-train-examples",
+        type=int,
+        help="Use a stratified subset of this size for faster configuration comparisons.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--experiment",
         choices=(
             "all",
-            "pca_svm",
+            "shared",
+            "ablations",
             *(config["name"] for config in EXPERIMENTS),
         ),
         default="all",
-        help="Train every configuration or one CNN/ORL PCA-SVM experiment.",
+        help=(
+            "Train all applicable CNNs, the shared or ablation comparison "
+            "set, or one named configuration."
+        ),
     )
     args = parser.parse_args()
-    if args.epochs < 1 or args.batch_size < 1:
-        parser.error("--epochs and --batch-size must be positive.")
+    if (
+        args.epochs < 1
+        or args.batch_size < 1
+        or (args.max_train_examples is not None and args.max_train_examples < 1)
+    ):
+        parser.error("--epochs, --batch-size, and --max-train-examples must be positive.")
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -684,6 +805,7 @@ def main() -> None:
             args.seed,
             device,
             args.experiment,
+            args.max_train_examples,
         )
 
 

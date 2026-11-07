@@ -1,2 +1,5 @@
-experiment,model,optimizer,loss,accuracy,precision_weighted,recall_weighted,f1_weighted,precision_macro,recall_macro,f1_macro
-pca_svm,40-component PCA + RBF SVM,SVC,,0.975,0.9625000000000001,0.9750000000000002,0.9666666666666669,0.9625,0.975,0.9666666666666668
+experiment,convolution_channels,kernel_size,stride,padding,pooling,hidden_size,optimizer,learning_rate,loss,epochs,augmentation,accuracy,precision_weighted,recall_weighted,f1_weighted,precision_macro,recall_macro,f1_macro
+baseline,"[32, 64]",3,1,1,2x2 max pooling after each convolution; adaptive average pooling to 1x1,128,Adam,0.001,cross-entropy,30,none,0.125,0.05227272727272727,0.125,0.06583333333333333,0.05227272727272727,0.125,0.06583333333333333
+deeper_adamw,"[32, 64, 128]",3,1,1,2x2 max pooling after each convolution; adaptive average pooling to 1x1,256,AdamW,0.001,cross-entropy,30,none,0.325,0.21666666666666665,0.325,0.24345238095238092,0.21666666666666665,0.325,0.24345238095238092
+wide_kernel_weighted,"[32, 64]",5,1,2,2x2 max pooling after each convolution; adaptive average pooling to 1x1,128,AdamW,0.0005,weighted cross-entropy,30,none,0.075,0.013541666666666665,0.075,0.022698412698412697,0.013541666666666665,0.075,0.022698412698412697
+orl_spatial_augmented,"[32, 64, 128]",3,1,1,2x2 max pooling after each convolution; adaptive average pooling to 4x4,256,AdamW,0.001,cross-entropy,60,small affine and brightness/contrast jitter,1.0,1.0,1.0,1.0,1.0,1.0,1.0

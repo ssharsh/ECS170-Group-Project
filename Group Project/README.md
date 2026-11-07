@@ -94,25 +94,38 @@ Run all datasets or select one to iterate quickly:
 python scripts/train_cnn.py --data-dir /path/to/stage_3_data
 python scripts/train_cnn.py --dataset mnist --data-dir /path/to/stage_3_data
 python scripts/train_cnn.py --dataset cifar --experiment deeper_adamw --data-dir /path/to/stage_3_data
-python scripts/train_cnn.py --dataset orl --experiment pca_svm --data-dir /path/to/stage_3_data
+python scripts/train_cnn.py --dataset orl --data-dir /path/to/stage_3_data
+```
+
+To compare controlled one-setting-at-a-time ablations (depth, kernel,
+stride, padding, pooling, hidden width, and loss) across all datasets:
+
+```bash
+python scripts/train_cnn.py --dataset all --data-dir /path/to/stage_3_data --output-dir results/cnn/controlled_ablations --epochs 3 --max-train-examples 1000 --experiment ablations
 ```
 
 The default run uses 30 epochs, batch size 64, a fixed seed, and CUDA when
 available. CIFAR-10 training normalizes each channel using training-set
-statistics and applies random horizontal flips. Three configurations compare
-a two-block 3x3 baseline, a deeper three-block model, and a two-block 5x5
-model with weighted cross-entropy. Each dataset gets its own
+statistics and applies random horizontal flips. Three shared configurations
+compare a two-block 3x3 baseline, a deeper three-block model, and a two-block
+5x5 model with weighted cross-entropy. Each dataset gets its own
 `results/cnn/<dataset>/metrics/results.csv` and
 `results.json`. CNN runs also generate a training-loss plot in
-`results/cnn/<dataset>/plots/`; the ORL PCA-SVM run has no loss curve. Use
-`--experiment` to select one CNN configuration or the ORL PCA-SVM model.
+`results/cnn/<dataset>/plots/`. ORL input images are converted to one
+grayscale channel before training. All three datasets are classified with
+CNNs. ORL also runs a spatial-augmented CNN configuration: batch normalization,
+a retained 4x4 feature map, per-image standardization, mild affine/lighting
+augmentation, and a 60-epoch schedule. Use `--experiment` to select one CNN
+configuration, `ablations` to run controlled single-setting comparisons,
+`shared` to train the three common configurations, or `all` (the default) to
+train all applicable configurations. Controlled ablation results and curves
+are saved under `results/cnn/controlled_ablations/`. `--max-train-examples`
+selects a deterministic stratified subset of the training split for quicker
+experiments; it does not change the held-out test split.
 Metrics are held-out test accuracy and weighted/macro Precision, Recall, and
 F1. The JSON also records the class names and split sizes. The weighted-loss
 experiment changes its optimizer, learning rate, kernel, and loss together, so
 it is a combined comparison rather than an isolated loss ablation.
-ORL also reports a PCA + RBF-SVM baseline. Its 40-component PCA and SVM
-settings were selected with cross-validation on the training split, then
-evaluated on the supplied test split.
 
 Generate the report-ready architecture diagram for the best-performing CNN
 configuration with:

@@ -9,7 +9,7 @@ OUTPUT_DIR = ROOT / "results" / "cnn" / "plots"
 
 DATASETS = (
     ("MNIST", "1 × 28 × 28", "32 × 14 × 14", "64 × 7 × 7", "128 × 3 × 3", "10 classes"),
-    ("ORL", "3 × 112 × 92", "32 × 56 × 46", "64 × 28 × 23", "128 × 14 × 11", "40 classes"),
+    ("ORL", "1 × 112 × 92", "32 × 56 × 46", "64 × 28 × 23", "128 × 14 × 11", "40 classes"),
     ("CIFAR-10", "3 × 32 × 32", "32 × 16 × 16", "64 × 8 × 8", "128 × 4 × 4", "10 classes"),
 )
 
@@ -161,7 +161,7 @@ def create_plot() -> tuple[Path, Path]:
     ax.text(
         0.82,
         9.22,
-        "Best test-performing configuration (deeper_adamw) · shared architecture, dataset-specific input/output sizes",
+        "Three-block CNN backbone; ORL's best model retains spatial features",
         fontsize=11,
         color=COLORS["muted"],
         va="center",
@@ -215,7 +215,7 @@ def create_plot() -> tuple[Path, Path]:
     ax.text(
         1.05,
         3.44,
-        "GLOBAL AVERAGE POOL",
+        "ADAPTIVE AVERAGE POOL",
         fontsize=10,
         color=COLORS["ink"],
         fontweight="bold",
@@ -224,7 +224,7 @@ def create_plot() -> tuple[Path, Path]:
     ax.text(
         7.35,
         3.44,
-        "128 × 1 × 1 feature map → 128-value vector",
+        "MNIST/CIFAR: 128 × 1 × 1 · ORL variant: 128 × 4 × 4",
         fontsize=10,
         color=COLORS["ink"],
         ha="center",
@@ -245,7 +245,7 @@ def create_plot() -> tuple[Path, Path]:
     ax.text(
         7.45,
         2.40,
-        "Flatten → Linear 128→256 → ReLU → Linear 256→classes",
+        "Flatten → Linear 128 (standard) / 2048 (ORL)→256 → ReLU → classes",
         fontsize=10.5,
         color=COLORS["ink"],
         ha="center",
@@ -278,7 +278,7 @@ def create_plot() -> tuple[Path, Path]:
     ax.text(
         0.82,
         0.44,
-        "Training setup: AdamW · learning rate 0.001 · 10 epochs · batch size 64",
+        "ORL variant: BatchNorm · dropout 0.4 · affine/lighting augmentation · 60 epochs · details in report",
         fontsize=9.5,
         color=COLORS["muted"],
         va="center",
